@@ -1,5 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { createToolLogger, type ToolLogger } from '../lib/tool-logging';
 
 interface GeocodingResponse {
   results: {
@@ -35,28 +36,76 @@ export const weatherTool = createTool({
     conditions: z.string(),
     location: z.string(),
   }),
-  execute: async (inputData) => {
-    return await getWeather(inputData.location);
+  execute: async (inputData, context) => {
+    const log = createToolLogger('get-weather', context);
+    log.start({ location: inputData.location });
+
+    try {
+      const weather = await getWeather(inputData.location, log);
+      log.done('result', 'weather returned', {
+        location: weather.location,
+        conditions: weather.conditions,
+        temperature: weather.temperature,
+      });
+      return weather;
+    } catch (error) {
+      log.error('execute', error, { location: inputData.location });
+      throw error;
+    }
   },
 });
 
-const getWeather = async (location: string) => {
+const getWeather = async (location: string, log: ToolLogger) => {
   const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`;
-  const geocodingResponse = await fetch(geocodingUrl);
-  const geocodingData = (await geocodingResponse.json()) as GeocodingResponse;
+
+  const geocodingData = await log.stage(
+    'geocode location',
+    async () => {
+      const geocodingResponse = await fetch(geocodingUrl);
+      if (!geocodingResponse.ok) {
+        throw new Error(
+          `Geocoding request failed with HTTP ${geocodingResponse.status}`,
+        );
+      }
+      return (await geocodingResponse.json()) as GeocodingResponse;
+    },
+    { location },
+  );
 
   if (!geocodingData.results?.[0]) {
+    log.warn('geocode', 'location not found', { location });
     throw new Error(`Location '${location}' not found`);
   }
 
   const { latitude, longitude, name } = geocodingData.results[0];
+  log.info('geocode', 'location resolved', {
+    location,
+    resolvedName: name,
+    latitude,
+    longitude,
+  });
 
   const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code`;
 
-  const response = await fetch(weatherUrl);
-  const data = (await response.json()) as WeatherResponse;
+  const data = await log.stage(
+    'fetch forecast',
+    async () => {
+      const response = await fetch(weatherUrl);
+      if (!response.ok) {
+        throw new Error(`Forecast request failed with HTTP ${response.status}`);
+      }
+      return (await response.json()) as WeatherResponse;
+    },
+    { resolvedName: name },
+  );
 
-  return {
+  log.info('forecast', 'forecast received', {
+    resolvedName: name,
+    weatherCode: data.current.weather_code,
+    observedAt: data.current.time,
+  });
+
+  return log.stage('build result', () => ({
     temperature: data.current.temperature_2m,
     feelsLike: data.current.apparent_temperature,
     humidity: data.current.relative_humidity_2m,
@@ -64,7 +113,7 @@ const getWeather = async (location: string) => {
     windGust: data.current.wind_gusts_10m,
     conditions: getWeatherCondition(data.current.weather_code),
     location: name,
-  };
+  }));
 };
 
 function getWeatherCondition(code: number): string {

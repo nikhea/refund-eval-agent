@@ -39,7 +39,10 @@ const fetchWeather = createStep({
     city: z.string().describe('The city to get the weather for'),
   }),
   outputSchema: forecastSchema,
-  execute: async ({ inputData }) => {
+  execute: async ({ inputData, mastra }) => {
+    const log = mastra?.getLogger();
+    log?.info('[fetch-weather] step started', { city: inputData?.city });
+
     if (!inputData) {
       throw new Error('Input data not found');
     }
@@ -82,6 +85,15 @@ const fetchWeather = createStep({
       location: name
     }
 
+    log?.info('[fetch-weather] step completed', {
+      city: inputData.city,
+      resolvedName: name,
+      condition: forecast.condition,
+      maxTemp: forecast.maxTemp,
+      minTemp: forecast.minTemp,
+      precipitationChance: forecast.precipitationChance,
+    });
+
     return forecast;
   },
 });
@@ -95,14 +107,21 @@ const planActivities = createStep({
     activities: z.string(),
   }),
   execute: async ({ inputData, mastra }) => {
+    const log = mastra?.getLogger();
     const forecast = inputData
 
     if (!forecast) {
       throw new Error('Forecast data not found')
     }
 
+    log?.info('[plan-activities] step started', {
+      location: forecast.location,
+      condition: forecast.condition,
+    });
+
     const agent = mastra?.getAgent('weatherAgent');
     if (!agent) {
+      log?.error('[plan-activities] weather agent not found');
       throw new Error('Weather agent not found');
     }
 
@@ -161,6 +180,11 @@ const planActivities = createStep({
       process.stdout.write(chunk);
       activitiesText += chunk;
     }
+
+    log?.info('[plan-activities] step completed', {
+      location: forecast.location,
+      characters: activitiesText.length,
+    });
 
     return {
       activities: activitiesText,
