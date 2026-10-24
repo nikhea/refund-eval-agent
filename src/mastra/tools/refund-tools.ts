@@ -60,6 +60,15 @@ const normalizeCondition = (value: unknown): unknown => {
   return key;
 };
 
+// Models often include optional fields as empty strings instead of omitting
+// them. Treat blank strings as "not provided" so `.optional()` works as meant.
+const blankToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
+const optionalEmailSchema = z
+  .preprocess(blankToUndefined, z.string().email().optional())
+  .describe("Any email on the customer's account.");
+
 const reasonSchema = z
   .preprocess(normalizeReason, z.enum(RETURN_REASONS))
   .describe(
@@ -116,11 +125,7 @@ export const getCustomerTool = createTool({
       .string()
       .optional()
       .describe("Customer ID like CUS-001 (or just 1)."),
-    email: z
-      .string()
-      .email()
-      .optional()
-      .describe("Any email on the customer's account."),
+    email: optionalEmailSchema,
   }),
   outputSchema: z.object({
     found: z.boolean(),
@@ -246,17 +251,20 @@ export const getOrderDetailsTool = createTool({
   id: "get-order-details",
   description:
     "Look up an order by order ID, or list a customer's orders by email. Returns items, payment, delivery status, days since delivery, prior refunds, and remaining refundable quantity per item.",
-  inputSchema: z.object({
-    orderId: z
-      .string()
-      .optional()
-      .describe("Order ID like ORD-1001 (or just 1001)."),
-    customerEmail: z
-      .string()
-      .email()
-      .optional()
-      .describe("Use when the customer does not know the order ID."),
-  }),
+  inputSchema: z
+    .object({
+      orderId: z
+        .string()
+        .optional()
+        .describe("Order ID like ORD-1001 (or just 1001)."),
+      customerEmail: z
+        .preprocess(blankToUndefined, z.string().email().optional())
+        .describe("Use when the customer does not know the order ID."),
+    })
+    .refine((value) => Boolean(value.orderId?.trim() || value.customerEmail), {
+      message: "Provide an orderId or a customerEmail.",
+      path: ["orderId"],
+    }),
   outputSchema: z.object({
     found: z.boolean(),
     message: z.string().optional(),
@@ -621,7 +629,6 @@ export const processReturnRequestTool = createTool({
   inputSchema: z.object({
     orderId: z.string(),
     customerEmail: z
-      .string()
       .email()
       .describe("Email on the order, used to verify ownership."),
     reason: reasonSchema,
