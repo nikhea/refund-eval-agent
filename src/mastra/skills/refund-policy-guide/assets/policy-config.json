@@ -1,0 +1,59 @@
+{
+  "_comment": "Default reference policy. Copy and tune per business. All money in major currency units. Windows are days from DELIVERY.",
+  "currency": "USD",
+  "window_days": {
+    "electronics": 15,
+    "apparel": 30,
+    "footwear": 30,
+    "home": 30,
+    "furniture": 30,
+    "beauty": 30,
+    "grocery": 7,
+    "digital": 14,
+    "gift_card": 0,
+    "toys": 30,
+    "sports": 30,
+    "books": 30,
+    "jewelry": 30
+  },
+  "defective_window_days": 90,
+  "fault_window_days": 30,
+  "vip_window_bonus_days": 15,
+  "restocking_fee_rate": {
+    "electronics": 0.15,
+    "furniture": 0.10
+  },
+  "never_refundable_categories": ["gift_card"],
+  "fault_only_categories": {
+    "grocery": ["defective", "damaged_in_transit", "wrong_item", "not_as_described"],
+    "digital": ["defective"]
+  },
+  "final_sale_exception_reasons": ["defective", "damaged_in_transit", "wrong_item"],
+  "fault_reasons": ["defective", "damaged_in_transit", "wrong_item", "not_as_described"],
+  "unopened_only_categories": ["beauty"],
+  "shipping_refund_rule": "fault_all_units_no_prior_refund",
+  "manual_review_threshold": 1000,
+  "high_risk_score": 70,
+  "medium_risk_score": 40,
+  "refund_eta": {
+    "visa": "5-7 business days",
+    "mastercard": "5-7 business days",
+    "paypal": "3-5 business days",
+    "apple_pay": "3-5 business days",
+    "bank_transfer": "7-10 business days",
+    "store_credit": "instant"
+  },
+  "auto_approve_limits_by_actor": {
+    "agent": 1000,
+    "tier1_support": 500,
+    "tier2_support": 2500,
+    "team_lead": 10000,
+    "finance_manager": 50000
+  },
+  "goodwill_limit_per_case": {
+    "agent": 0,
+    "tier1_support": 25,
+    "tier2_support": 100,
+    "team_lead": 300
+  }
+}

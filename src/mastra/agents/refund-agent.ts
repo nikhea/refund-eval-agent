@@ -132,7 +132,10 @@ export const refundAgent = new Agent({
   description:
     "Handles order lookups, refund eligibility, refund calculation and return processing.",
   model: models,
-  tools: { ...refundTools, askUserTool },
+  tools: {
+    ...refundTools,
+    // askUserTool
+  },
   memory: refundAgentMemory,
   instructions: refundAgentMemoryInstructions,
   inputProcessors: [
@@ -181,4 +184,6 @@ export const refundAgent = new Agent({
     maxSteps: MAX_STEPS,
     autoResumeSuspendedTools: true,
   },
+  // Paths resolve against process.cwd() (LocalSkillSource basePath), not this file.
+  skills: ["../skills/refund-policy-guide"],
 });
