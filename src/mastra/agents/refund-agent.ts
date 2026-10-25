@@ -16,6 +16,7 @@ import {
 import { EnsureFinalResponseProcessor } from "../processor/ensure-final-response";
 import { DateInjectorProcessor } from "../processor/DateInjectorProcessor";
 import { askUserTool } from "@mastra/core/tools";
+import { weatherAgent } from "./weather-agent";
 
 const MAX_STEPS = 10;
 
@@ -136,6 +137,7 @@ export const refundAgent = new Agent({
     ...refundTools,
     // askUserTool
   },
+  agents: { weatherAgent },
   memory: refundAgentMemory,
   instructions: refundAgentMemoryInstructions,
   inputProcessors: [
@@ -164,7 +166,7 @@ export const refundAgent = new Agent({
       message: "Token cost limit exceeded. Please try again later.",
     }),
     new EnsureFinalResponseProcessor(MAX_STEPS),
-    new DateInjectorProcessor(),
+    // new DateInjectorProcessor(),
   ],
   outputProcessors: [
     new BatchPartsProcessor({
