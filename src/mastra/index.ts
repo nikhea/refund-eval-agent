@@ -20,18 +20,29 @@ import {
   translationScorer,
 } from "./scorers/weather-scorer";
 import { refundAgent } from "./agents/refund-agent";
+import { refundEvalScorers } from "./scorers/refund-scorers";
+import { refundEvalJudges } from "./scorers/refund-judges";
+import { refundEvalChecks } from "./scorers/refund-checks";
 
-type AppLogLevel = "debug" | "info" | "warn" | "error";
-type ObservabilityLogLevel = AppLogLevel | "fatal";
+type AppLogLevel = "debug" | "info" | "warn" | "error" | "silent";
+type ObservabilityLogLevel = Exclude<AppLogLevel, "silent"> | "fatal";
 
 const isProduction = process.env.NODE_ENV === "production";
+
+/**
+ * Storage paths are configurable so eval runs can use their own files instead
+ * of mixing eval threads, traces and scores into the development database.
+ */
+const databaseUrl = process.env.MASTRA_DB_URL?.trim() || "file:./mastra.db";
+const duckdbPath = process.env.MASTRA_DUCKDB_PATH?.trim() || "mastra.duckdb";
 
 function isAppLogLevel(value: string | undefined): value is AppLogLevel {
   return (
     value === "debug" ||
     value === "info" ||
     value === "warn" ||
-    value === "error"
+    value === "error" ||
+    value === "silent"
   );
 }
 
@@ -52,10 +63,10 @@ const logLevel = resolveLogLevel();
  */
 function resolveObservabilityLogLevel(): ObservabilityLogLevel {
   const configured = process.env.OBSERVABILITY_LOG_LEVEL?.toLowerCase();
-  if (isAppLogLevel(configured) || configured === "fatal") {
-    return configured;
-  }
-  return logLevel;
+  if (configured === "fatal") return configured;
+  if (isAppLogLevel(configured) && configured !== "silent") return configured;
+  // `silent` is a console-only concept; stored logs still need a real level.
+  return logLevel === "silent" ? "warn" : logLevel;
 }
 
 const observabilityLogLevel = resolveObservabilityLogLevel();
@@ -204,15 +215,24 @@ export const mastra = new Mastra({
     toolCallAppropriatenessScorer,
     completenessScorer,
     translationScorer,
+    // Deterministic refund evals and advisory judges. Registered so scores are
+    // persisted to storage and visible in Studio instead of only in stdout.
+    ...refundEvalScorers,
+    ...refundEvalJudges,
+    // One instance per check type: score records are keyed by scorer id, so
+    // registering several `calledTool` checks would collapse into one series.
+    ...refundEvalChecks,
   },
   storage: new MastraCompositeStore({
     id: "composite-storage",
     default: new LibSQLStore({
       id: "mastra-storage",
-      url: "file:./mastra.db",
+      url: databaseUrl,
     }),
     domains: {
-      observability: await new DuckDBStore().getStore("observability"),
+      observability: await new DuckDBStore({ path: duckdbPath }).getStore(
+        "observability",
+      ),
     },
   }),
   logger,
@@ -246,6 +266,8 @@ logger.info("observability configured", {
   includeInternalSpans,
   excludedSpanTypes: [SpanType.MODEL_CHUNK],
   requestContextKeys,
+  databaseUrl,
+  duckdbPath,
   ...(invalidRatio ? { invalidSampleRatio: invalidRatio } : {}),
 });
 

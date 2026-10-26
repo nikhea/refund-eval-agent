@@ -44,3 +44,6 @@ dist
 .vercel
 *.duckdb
 *.duckdb.wal
+
+# eval artifacts (the databases are already ignored above)
+evals/results/

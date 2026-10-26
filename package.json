@@ -17,7 +17,11 @@
   "scripts": {
     "dev": "mastra dev",
     "build": "mastra build",
-    "start": "mastra start"
+    "start": "mastra start",
+    "evals": "bun run evals/run.ts",
+    "evals:smoke": "bun run evals/run.ts --smoke",
+    "evals:full": "bun run evals/run.ts --full",
+    "evals:dry": "bun run evals/run.ts --dry-run"
   },
   "dependencies": {
     "@mastra/core": "^1.79.0",
