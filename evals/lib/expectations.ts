@@ -184,6 +184,9 @@ export function buildExpectation(
     expectClarification: testCase.expectClarification,
     knownAmounts: testCase.knownAmounts,
     criterion: testCase.criterion,
+    userTurns:
+      testCase.turns?.map((turn) => turn.input) ??
+      (testCase.input ? [testCase.input] : undefined),
   };
 }
 

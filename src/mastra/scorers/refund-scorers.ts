@@ -56,6 +56,8 @@ export type RefundEvalExpectation = {
   knownAmounts?: number[];
   criterion?: string;
   expectApprovalPause?: boolean;
+  /** Customer messages, so the conversation judge can see both sides. */
+  userTurns?: string[];
 };
 
 /**

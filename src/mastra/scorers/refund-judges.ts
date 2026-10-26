@@ -96,7 +96,10 @@ export const conversationJudge = createScorer({
     model: REFUND_JUDGE_MODEL,
     instructions:
       "You grade multi-turn customer-support transcripts against one criterion. " +
-      "Judge the whole conversation, including whether earlier turns were ignored. " +
+      "The transcript lists the customer's messages and the assistant's replies separately, " +
+      "each in order; one customer message can produce several assistant replies. " +
+      "Judge the whole conversation, including whether earlier turns were ignored and whether " +
+      "the assistant acted only after the customer actually authorized it. " +
       "Return only the structured JSON requested.",
   },
 })
@@ -105,15 +108,29 @@ export const conversationJudge = createScorer({
     if (!exp?.criterion)
       return notScorable("case does not define a conversation criterion");
 
-    const turns = extractAgentResponseMessages(run.output as any);
-    if (!turns.length) return notScorable("no assistant turns to grade");
+    const replies = extractAgentResponseMessages(run.output as any)
+      .map((text) => text.trim())
+      .filter(Boolean);
+    if (!replies.length) return notScorable("no assistant turns to grade");
 
-    return {
-      criterion: exp.criterion,
-      transcript: turns
-        .map((text, index) => `Turn ${index + 1}: ${text}`)
-        .join("\n\n"),
-    };
+    // `run.output` only carries assistant messages. Without the customer's
+    // messages the judge cannot see a confirmation, so ground truth supplies
+    // them and the transcript is rendered as two ordered, labelled blocks.
+    const customerTurns = (exp.userTurns ?? []).map((text) => text.trim());
+    const transcript = [
+      customerTurns.length
+        ? `CUSTOMER MESSAGES (in order):\n${customerTurns
+            .map((text, index) => `${index + 1}. ${text}`)
+            .join("\n")}`
+        : "",
+      `ASSISTANT REPLIES (in order; one customer message can produce several):\n${replies
+        .map((text, index) => `${index + 1}. ${text}`)
+        .join("\n")}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    return { criterion: exp.criterion, transcript };
   })
   .analyze({
     description: "Grade the conversation against the criterion",
@@ -144,4 +161,43 @@ Return JSON: { "satisfied": boolean, "reasoning": string }`;
 export const refundEvalJudges = {
   policyCommunication: policyCommunicationJudge,
   conversationJudge,
+};
+
+type JudgeScorer = { run: (...args: any[]) => Promise<any> };
+
+/**
+ * `runEvals` aborts the whole item when a scorer throws, so a judge provider
+ * hiccup would turn an advisory opinion into a case failure. This wrapper
+ * converts any judge error into a not-scorable result, which is what
+ * "advisory" has to mean structurally.
+ */
+function makeAdvisory<T extends JudgeScorer>(scorer: T): T {
+  return new Proxy(scorer, {
+    get(target, property, receiver) {
+      if (property === "run") {
+        return async (args: any) => {
+          try {
+            return await target.run(args);
+          } catch (error) {
+            const reason = `advisory judge failed: ${
+              (error as Error)?.message ?? String(error)
+            }`;
+            return {
+              runId: "advisory-judge-error",
+              notScorable: { step: "analyze", reason },
+              reason,
+            };
+          }
+        };
+      }
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as T;
+}
+
+/** Runner-facing judges: same scorers, but failures can never fail a case. */
+export const advisoryRefundJudges = {
+  policyCommunication: makeAdvisory(policyCommunicationJudge),
+  conversationJudge: makeAdvisory(conversationJudge),
 };

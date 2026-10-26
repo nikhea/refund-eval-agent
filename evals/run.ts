@@ -19,7 +19,7 @@ import { resolve } from "node:path";
 import {
   refundDeterministicScorers,
 } from "../src/mastra/scorers/refund-scorers";
-import { refundEvalJudges } from "../src/mastra/scorers/refund-judges";
+import { advisoryRefundJudges } from "../src/mastra/scorers/refund-judges";
 import { refundEvalGates, refundEvalChecks } from "../src/mastra/scorers/refund-checks";
 import {
   assistantText,
@@ -281,11 +281,15 @@ function toScorerReports(
 ): ScorerReport[] {
   if (!scorerResults) return [];
   return Object.entries(scorerResults).map(([id, result]) => {
+    const advisory =
+      id === "refund-policy-communication" ||
+      id === "refund-conversation-judge";
     if (result?.notScorable) {
-      return { id, notScorable: true, reason: String(result.reason ?? "") };
+      return { id, advisory, notScorable: true, reason: String(result.reason ?? "") };
     }
     return {
       id,
+      advisory,
       score: typeof result?.score === "number" ? result.score : undefined,
       reason: typeof result?.reason === "string" ? result.reason : undefined,
       passed: typeof result?.score === "number" ? result.score >= 1 : false,
@@ -640,7 +644,10 @@ async function main(): Promise<number> {
       threshold: 1,
     })),
     ...(useJudges
-      ? [refundEvalJudges.policyCommunication, refundEvalJudges.conversationJudge]
+      ? [
+          advisoryRefundJudges.policyCommunication,
+          advisoryRefundJudges.conversationJudge,
+        ]
       : []),
   ];
 

@@ -11,6 +11,8 @@ export type ScorerReport = {
   passed?: boolean;
   reason?: string;
   notScorable?: boolean;
+  /** Advisory judges inform but never decide a case. */
+  advisory?: boolean;
 };
 
 export type CaseOutcome = {
@@ -116,10 +118,11 @@ export function printCaseLine(
   for (const scorer of outcome.scorers) {
     if (scorer.notScorable) continue;
     const ok = scorer.passed ?? (scorer.score ?? 0) >= 1;
-    const mark = ok ? "✓" : "✗";
+    const mark = scorer.advisory ? "·" : ok ? "✓" : "✗";
+    const label = scorer.advisory ? `${scorer.id} (advisory)` : scorer.id;
     const score = scorer.score === undefined ? "" : ` ${scorer.score.toFixed(2)}`;
     console.log(
-      `  ${paint(mark, ok ? "green" : "red")} ${scorer.id}${score}`,
+      `  ${paint(mark, ok ? "green" : scorer.advisory ? "dim" : "red")} ${label}${score}`,
     );
     if (!ok && scorer.reason) console.log(paint(`      ${scorer.reason}`, "dim"));
   }
@@ -164,7 +167,12 @@ export function printSummary(
     console.log(paint("\nFailures:", "red"));
     for (const failure of failures) {
       const failedScorers = failure.scorers
-        .filter((s) => !s.notScorable && (s.passed === false || (s.score ?? 0) < 1))
+        .filter(
+          (s) =>
+            !s.advisory &&
+            !s.notScorable &&
+            (s.passed === false || (s.score ?? 0) < 1),
+        )
         .map((s) => s.id);
       const detail = failedScorers.length
         ? failedScorers.join(", ")
