@@ -23,6 +23,7 @@ import { refundAgent } from "./agents/refund-agent";
 import { refundEvalScorers } from "./scorers/refund-scorers";
 import { refundEvalJudges } from "./scorers/refund-judges";
 import { refundEvalChecks } from "./scorers/refund-checks";
+import { MastraEditor } from "@mastra/editor";
 
 type AppLogLevel = "debug" | "info" | "warn" | "error" | "silent";
 type ObservabilityLogLevel = Exclude<AppLogLevel, "silent"> | "fatal";
@@ -209,6 +210,7 @@ const observability = new Observability({
 });
 
 export const mastra = new Mastra({
+  editor: new MastraEditor(),
   workflows: { weatherWorkflow },
   agents: { weatherAgent, refundAgent },
   scorers: {
@@ -229,6 +231,7 @@ export const mastra = new Mastra({
       id: "mastra-storage",
       url: databaseUrl,
     }),
+
     domains: {
       observability: await new DuckDBStore({ path: duckdbPath }).getStore(
         "observability",
@@ -255,9 +258,7 @@ logger.info("observability configured", {
   exporterLogLevel,
   logExportEnabled: exportLogs,
   sampling:
-    "probability" in sampling
-      ? `ratio:${sampling.probability}`
-      : sampling.type,
+    "probability" in sampling ? `ratio:${sampling.probability}` : sampling.type,
   exporters: [
     "mastra-storage",
     "mastra-platform",

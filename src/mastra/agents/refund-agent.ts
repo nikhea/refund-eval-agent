@@ -17,6 +17,7 @@ import { EnsureFinalResponseProcessor } from "../processor/ensure-final-response
 import { DateInjectorProcessor } from "../processor/DateInjectorProcessor";
 import { askUserTool } from "@mastra/core/tools";
 import { weatherAgent } from "./weather-agent";
+import { weatherSignalTool } from "../tools/sendWeatherSignal-tools";
 
 const MAX_STEPS = 10;
 
@@ -130,16 +131,19 @@ const models: ModelWithRetries[] = [
 export const refundAgent = new Agent({
   id: "refund-agent",
   name: "Refund Agent",
-  description:
-    "Handles order lookups, refund eligibility, refund calculation and return processing.",
+  // description:
+  // "Handles order lookups, refund eligibility, refund calculation and return processing.",
   model: models,
   tools: {
-    ...refundTools,
+    // ...refundTools,
+    weatherSignalTool,
     // askUserTool
   },
-  agents: { weatherAgent },
+  // agents: { weatherAgent },
+
   memory: refundAgentMemory,
-  instructions: refundAgentMemoryInstructions,
+  instructions: "you are a helpful assistance",
+  // ?? refundAgentMemoryInstructions,
   inputProcessors: [
     new UnicodeNormalizer({
       stripControlChars: true,
